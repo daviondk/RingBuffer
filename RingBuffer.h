@@ -265,6 +265,7 @@ public:
     //	}
     //}
 };
+
 template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
     left.swap(right);
 }
