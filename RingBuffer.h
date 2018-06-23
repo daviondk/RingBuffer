@@ -1,9 +1,13 @@
+#ifndef RINGBUFFER_RINGBUFFER_H
+#define RINGBUFFER_RINGBUFFER_H
+
 #include<vector>
 #include<iostream>
 #include<cassert>
 #include <cstring>
+#include <exception>
 
-template<typename T> class RingBuffer{
+template<typename T> class RingBuffer {
 private:
     enum endFlags { LEFT, RIGHT, MID, BOTH };
 
@@ -99,13 +103,27 @@ private:
             return result;
         }
 
-        bool operator == (Iterator other) const {
+        self_type operator + (const int add) const {
+            if (add == 0) return *this;
+
+            // begin_id < cur_id < end_id
+            uint64_t begin_id = buffer->begin_id + buffer->max_size;
+            uint64_t cur_id = id + max_size;
+            uint64_t end_id = buffer->end_id + buffer->max_size;
+            if (end_id < begin_id) end_id += max_size;
+
+            if (add < 0) return ((int64_t)cur_id + add >= begin_id) ? self_type(buffer, (cur_id + add) % buffer->max_size) : self_type(buffer, LEFT);
+            return				((int64_t)cur_id + add <= end_id) ? self_type((buffer, cur_id + add) % buffer->max_size) : self_type(buffer, RIGHT);
+
+        }
+
+        bool operator == (const Iterator other) const {
             if (buffer != other.buffer) return false;
             if (end_flag != other.end_flag) return false;
             if (end_flag != MID) return true;
             return id == other.id;
         }
-        bool operator != (Iterator other) const { return !((*this) == other); }
+        bool operator != (const Iterator other) const { return !((*this) == other); }
 
         reference operator * () const {
             return buffer->buffer[id];
@@ -124,22 +142,22 @@ public:
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     iterator begin() { return empty() ? iterator(this, BOTH) : iterator(this, begin_id); }
-    const_iterator begin() const { return const_iterator(begin()); }
+    const_iterator begin() const { return empty() ? const_iterator(this, BOTH) : const_iterator(this, begin_id); }
     iterator end() { return empty() ? iterator(this, BOTH) : iterator(this, RIGHT); }
-    const_iterator end() const { return const_iterator(end()); }
+    const_iterator end() const { return empty() ? const_iterator(this, BOTH) : const_iterator(this, RIGHT); }
 
     reverse_iterator rbegin() { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
     reverse_iterator rend() { return reverse_iterator(begin()); }
     const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 
-    inline bool empty() const  {
+    inline bool empty() const {
         return cur_size == 0;
     }
     void clear() {
         cur_size = 0;
         begin_id = 0;
-        end_id = max_size-1;
+        end_id = max_size - 1;
     }
 
     RingBuffer(const uint64_t max_size = 1) :max_size(max_size) {
@@ -159,14 +177,14 @@ public:
         clear();
     }
 
-    void push_back(const T& element) {
+    void push_back(const T &element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         end_id++;
         if (end_id == max_size) end_id = 0;
         buffer[end_id] = element;
     }
-    void push_front(const T& element) {
+    void push_front(const T &element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         if (begin_id == 0) begin_id = max_size;
@@ -201,10 +219,10 @@ public:
         cur_size++;
         buffer[cur_id % max_size] = element;
     }
-    void insert(const size_t id, const T& element)  { insert(const_iterator(this, (begin_id + id) % max_size), element); }
+    void insert(const size_t id, const T& element) { insert(const_iterator(this, (begin_id + id) % max_size), element); }
 
     void pop_back() {
-        if(cur_size == 0) throw std::exception("nothing to erase");
+        if (cur_size == 0) throw std::exception("nothing to erase");
         cur_size--;
         if (end_id == 0) end_id = max_size;
         end_id--;
@@ -236,25 +254,20 @@ public:
     void erase(uint64_t id) { erase(const_iterator(this, (begin_id + id) % max_size)); }
 
     T& operator[](uint64_t id) {
-        if(id > cur_size) throw std::exception("out of range");
+        if (id > cur_size) throw std::exception("out of range");
         return buffer[(begin_id + id) % max_size];
     }
-
+    const T operator[](uint64_t id) const { return (*this)[id] ; }
     void swap(RingBuffer<T>&right) {
-        swap(max_size, right.max_size);
-        swap(cur_size, right.cur_size);
-        swap(begin_id, right.begin_id);
-        swap(end_id, right.end_id);
-        swap(buffer, right.buffer);
+        std::swap(max_size, right.max_size);
+        std::swap(cur_size, right.cur_size);
+        std::swap(begin_id, right.begin_id);
+        std::swap(end_id, right.end_id);
+        std::swap(buffer, right.buffer);
     }
 
-    T* front() {
-        return &buffer[begin_id];
-    }
-
-    T* back() {
-        return &buffer[end_id];
-    }
+    T* front() const { return &buffer[begin_id]; }
+    T* back() const { return &buffer[end_id]; }
 
     //void print() {
     //	printf("%d/%d: %d-->%d\n", cur_size, max_size, begin_id, end_id);
@@ -265,7 +278,6 @@ public:
     //	}
     //}
 };
-
 template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
     left.swap(right);
 }
@@ -332,3 +344,5 @@ template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
 //		}
 //	}
 //};
+
+#endif //RINGBUFFER_RINGBUFFERX_H
