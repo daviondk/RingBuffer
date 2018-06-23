@@ -7,6 +7,7 @@
 #include <cstring>
 #include <exception>
 
+
 template<typename T> class RingBuffer {
 private:
     enum endFlags { LEFT, RIGHT, MID, BOTH };
@@ -177,14 +178,14 @@ public:
         clear();
     }
 
-    void push_back(const T &element) {
+    void push_back(const T& element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         end_id++;
         if (end_id == max_size) end_id = 0;
         buffer[end_id] = element;
     }
-    void push_front(const T &element) {
+    void push_front(const T& element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         if (begin_id == 0) begin_id = max_size;
@@ -222,13 +223,13 @@ public:
     void insert(const size_t id, const T& element) { insert(const_iterator(this, (begin_id + id) % max_size), element); }
 
     void pop_back() {
-        if (cur_size == 0) throw std::exception("nothing to erase");
+        if (cur_size == 0) throw std::exception("nothing to pop");
         cur_size--;
         if (end_id == 0) end_id = max_size;
         end_id--;
     }
     void pop_front() {
-        if (cur_size == 0) throw std::exception("nothing to erase");
+        if (cur_size == 0) throw std::exception("nothing to pop");
         cur_size--;
         begin_id++;
         if (begin_id == max_size) begin_id = 0;
@@ -257,7 +258,7 @@ public:
         if (id > cur_size) throw std::exception("out of range");
         return buffer[(begin_id + id) % max_size];
     }
-    const T operator[](uint64_t id) const { return (*this)[id] ; }
+    const T operator[](uint64_t id) const { return (*this)[id]; }
     void swap(RingBuffer<T>&right) {
         std::swap(max_size, right.max_size);
         std::swap(cur_size, right.cur_size);
@@ -269,14 +270,14 @@ public:
     T* front() const { return &buffer[begin_id]; }
     T* back() const { return &buffer[end_id]; }
 
-    //void print() {
-    //	printf("%d/%d: %d-->%d\n", cur_size, max_size, begin_id, end_id);
-    //	for (uint64_t i = 0; i < max_size; i++) {
-    //		printf("%d: ", i);
-    //		std::cout << buffer[i];
-    //		printf("\n");
-    //	}
-    //}
+    void print() {
+        printf("%llu/%llu: %llu-->%llu\n", cur_size, max_size, begin_id, end_id);
+        for (uint64_t i = 0; i < max_size; i++) {
+            printf("%llu: ", i);
+            std::cout << buffer[i];
+            printf("\n");
+        }
+    }
 };
 template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
     left.swap(right);
@@ -312,26 +313,26 @@ template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
 //					break;
 //				case 1:
 //					std::cin >> element;
-//					buffer->insert_begin(element);
+//					buffer->push_begin(element);
 //					break;
 //				case 2:
 //					std::cin >> id;
 //					std::cin >> element;
-//					buffer->insert(id, element);
+//					buffer->push(id, element);
 //					break;
 //				case 3:
 //					std::cin >> element;
-//					buffer->insert_end(element);
+//					buffer->push_end(element);
 //					break;
 //				case 4:
-//					buffer->erase_begin();
+//					buffer->pop_begin();
 //					break;
 //				case 5:
 //					std::cin >> id;
-//					buffer->erase(id);
+//					buffer->pop(id);
 //					break;
 //				case 6:
-//					buffer->erase_end();
+//					buffer->pop_end();
 //					break;
 //				default:
 //					return;
@@ -345,4 +346,4 @@ template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
 //	}
 //};
 
-#endif //RINGBUFFER_RINGBUFFERX_H
+#endif //RINGBUFFER_RINGBUFFER_H
