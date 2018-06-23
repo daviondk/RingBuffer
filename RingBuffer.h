@@ -248,6 +248,13 @@ public:
         swap(buffer, right.buffer);
     }
 
+    T* front() {
+        return &buffer[begin_id];
+    }
+
+    T* back() {
+        return &buffer[end_id];
+    }
 
     //void print() {
     //	printf("%d/%d: %d-->%d\n", cur_size, max_size, begin_id, end_id);
