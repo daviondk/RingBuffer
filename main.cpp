@@ -6,9 +6,9 @@ int main() {
     //tester.startListen();
 
     RingBuffer<int> buf(5);
-    buf.insert_begin(5);
-    buf.insert_begin(3);
-    buf.insert_begin(4);
+    buf.push_front(5);
+    buf.push_front(3);
+    buf.push_front(4);
     std::cout << *std::next(buf.rbegin(), 2);
 
     //for (const auto e : buf) {printf("%d ", e);}

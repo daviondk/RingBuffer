@@ -159,14 +159,14 @@ public:
         clear();
     }
 
-    void insert_end(const T& element) {
+    void push_back(const T& element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         end_id++;
         if (end_id == max_size) end_id = 0;
         buffer[end_id] = element;
     }
-    void insert_begin(const T& element) {
+    void push_front(const T& element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         if (begin_id == 0) begin_id = max_size;
@@ -203,13 +203,13 @@ public:
     }
     void insert(const size_t id, const T& element)  { insert(const_iterator(this, (begin_id + id) % max_size), element); }
 
-    void erase_end() {
+    void pop_back() {
         if(cur_size == 0) throw std::exception("nothing to erase");
         cur_size--;
         if (end_id == 0) end_id = max_size;
         end_id--;
     }
-    void erase_begin() {
+    void pop_front() {
         if (cur_size == 0) throw std::exception("nothing to erase");
         cur_size--;
         begin_id++;
@@ -223,12 +223,12 @@ public:
         // begin_id < cur_id < end_id
 
         if (cur_id - begin_id < end_id - cur_id) {//from left
-            erase_begin();
+            pop_front();
             for (uint64_t cur_el = cur_id; cur_el > begin_id; cur_el--)
                 buffer[cur_el % max_size] = buffer[(cur_el - 1) % max_size];
         }
         else {//from right
-            erase_end();
+            pop_back();
             for (uint64_t cur_el = cur_id; cur_el < end_id; cur_el++)
                 buffer[cur_el % max_size] = buffer[(cur_el + 1) % max_size];
         }
