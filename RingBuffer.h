@@ -7,7 +7,6 @@
 #include <cstring>
 #include <exception>
 
-
 template<typename T> class RingBuffer {
 private:
     enum endFlags { LEFT, RIGHT, MID, BOTH };
@@ -108,13 +107,14 @@ private:
             if (add == 0) return *this;
 
             // begin_id < cur_id < end_id
-            uint64_t begin_id = buffer->begin_id + buffer->max_size;
+            uint64_t max_size = buffer->max_size;
+            uint64_t begin_id = buffer->begin_id + max_size;
             uint64_t cur_id = id + max_size;
-            uint64_t end_id = buffer->end_id + buffer->max_size;
+            uint64_t end_id = buffer->end_id + max_size;
             if (end_id < begin_id) end_id += max_size;
 
-            if (add < 0) return ((int64_t)cur_id + add >= begin_id) ? self_type(buffer, (cur_id + add) % buffer->max_size) : self_type(buffer, LEFT);
-            return				((int64_t)cur_id + add <= end_id) ? self_type((buffer, cur_id + add) % buffer->max_size) : self_type(buffer, RIGHT);
+            if (add < 0) return ((int64_t)cur_id + add >= (int64_t)begin_id) ? self_type(buffer, (cur_id + add) % max_size) : self_type(buffer, LEFT);
+            return				((int64_t)cur_id + add <= (int64_t)end_id) ? self_type(buffer, (cur_id + add) % max_size) : self_type(buffer, RIGHT);
 
         }
 
@@ -178,21 +178,21 @@ public:
         clear();
     }
 
-    void push_back(const T& element) {
+    void push_back(const T &element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         end_id++;
         if (end_id == max_size) end_id = 0;
         buffer[end_id] = element;
     }
-    void push_front(const T& element) {
+    void push_front(const T &element) {
         if (cur_size == max_size) increst_capacity();
         cur_size++;
         if (begin_id == 0) begin_id = max_size;
         begin_id--;
         buffer[begin_id] = element;
     }
-    void insert(const const_iterator pos, const T& element) {
+    void insert(const const_iterator pos, const T &element) {
         if (cur_size == max_size) increst_capacity();
 
         // begin_id < cur_id < end_id
@@ -220,16 +220,16 @@ public:
         cur_size++;
         buffer[cur_id % max_size] = element;
     }
-    void insert(const size_t id, const T& element) { insert(const_iterator(this, (begin_id + id) % max_size), element); }
+    void insert(const size_t id, const T &element) { insert(const_iterator(this, (begin_id + id) % max_size), element); }
 
     void pop_back() {
-        if (cur_size == 0) throw std::exception("nothing to pop");
+        assert (cur_size != 0);
         cur_size--;
         if (end_id == 0) end_id = max_size;
         end_id--;
     }
     void pop_front() {
-        if (cur_size == 0) throw std::exception("nothing to pop");
+        assert (cur_size != 0);
         cur_size--;
         begin_id++;
         if (begin_id == max_size) begin_id = 0;
@@ -255,7 +255,7 @@ public:
     void erase(uint64_t id) { erase(const_iterator(this, (begin_id + id) % max_size)); }
 
     T& operator[](uint64_t id) {
-        if (id > cur_size) throw std::exception("out of range");
+        assert (id <= cur_size);
         return buffer[(begin_id + id) % max_size];
     }
     const T operator[](uint64_t id) const { return (*this)[id]; }
@@ -283,67 +283,66 @@ template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
     left.swap(right);
 }
 
-//class Tester {
-//public:
-//	RingBuffer<int> *buffer;
-//
-//	Tester() {
-//		buffer = new RingBuffer<int>(2);
-//	}
-//
-//	void print() {
-//		buffer->print();
-//		//printf("capacity: %d / %d", buffer->size(), buffer->capacity());
-//		printf("( --> ) "); for (auto cur = buffer->begin(); cur != buffer->end(); cur++)   printf("%d ", *cur); printf("\n");
-//		printf("( <-- ) "); for (auto cur = buffer->rbegin(); cur != buffer->rend(); cur++) printf("%d ", *cur); printf("\n");
-//	}
-//
-//	void startListen() {
-//		int element;
-//		int cmd;
-//		int id;
-//
-//		while (true) {
-//			std::cin >> cmd;
-//			try {
-//				switch (cmd) {
-//				case 0:
-//					std::cin >> id;
-//					printf("out: %d\n", (*buffer)[id]);
-//					break;
-//				case 1:
-//					std::cin >> element;
-//					buffer->push_begin(element);
-//					break;
-//				case 2:
-//					std::cin >> id;
-//					std::cin >> element;
-//					buffer->push(id, element);
-//					break;
-//				case 3:
-//					std::cin >> element;
-//					buffer->push_end(element);
-//					break;
-//				case 4:
-//					buffer->pop_begin();
-//					break;
-//				case 5:
-//					std::cin >> id;
-//					buffer->pop(id);
-//					break;
-//				case 6:
-//					buffer->pop_end();
-//					break;
-//				default:
-//					return;
-//				}
-//				print();
-//			}
-//			catch (std::exception e) {
-//				printf("error: %s\n", e.what());
-//			}
-//		}
-//	}
-//};
+class Tester {
+public:
+    RingBuffer<int> *buffer;
 
+    Tester() {
+        buffer = new RingBuffer<int>(2);
+    }
+
+    void print() {
+        buffer->print();
+        //printf("capacity: %d / %d", buffer->size(), buffer->capacity());
+        printf("( --> ) "); for (auto cur = buffer->begin(); cur != buffer->end(); cur++)   printf("%d ", *cur); printf("\n");
+        printf("( <-- ) "); for (auto cur = buffer->rbegin(); cur != buffer->rend(); cur++) printf("%d ", *cur); printf("\n");
+    }
+
+    void startListen() {
+        int element;
+        int cmd;
+        int id;
+
+        while (true) {
+            std::cin >> cmd;
+            try {
+                switch (cmd) {
+                    case 0:
+                        std::cin >> id;
+                        printf("out: %d\n", (*buffer)[id]);
+                        break;
+                    case 1:
+                        std::cin >> element;
+                        buffer->push_front(element);
+                        break;
+                    case 2:
+                        std::cin >> id;
+                        std::cin >> element;
+                        buffer->insert(id, element);
+                        break;
+                    case 3:
+                        std::cin >> element;
+                        buffer->push_back(element);
+                        break;
+                    case 4:
+                        buffer->pop_front();
+                        break;
+                    case 5:
+                        std::cin >> id;
+                        buffer->erase(id);
+                        break;
+                    case 6:
+                        buffer->pop_back();
+                        break;
+                    default:
+                        return;
+                }
+                print();
+            }
+            catch (std::exception e) {
+                printf("error: %s\n", e.what());
+            }
+        }
+    }
+};
 #endif //RINGBUFFER_RINGBUFFER_H

@@ -6,10 +6,9 @@ int main() {
     //tester.startListen();
 
     RingBuffer<int> buf(5);
-    RingBuffer<int> buf1(5);
+    const RingBuffer<int> buf1(5);
     buf.back();
-    //buf[1];
-    swap(buf, buf1);
+    auto x = buf.begin() + 1;
     buf.push_front(5);
     buf.push_front(3);
     buf.push_front(4);
