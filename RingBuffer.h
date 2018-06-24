@@ -4,9 +4,9 @@
 #include<vector>
 #include<iostream>
 #include<cassert>
-#include <cstring>
-#include <exception>
-#include <stdexcept>
+#include<cstring>
+#include<exception>
+#include<stdexcept>
 
 template<typename T> class RingBuffer {
 private:
