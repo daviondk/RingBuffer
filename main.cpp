@@ -6,6 +6,7 @@ int main() {
     //tester.startListen();
 
     RingBuffer<int> buf(5);
+    buf.insert(buf.begin() + 1, 1);
     const RingBuffer<int> buf1(5);
     buf.back();
     auto x = buf.begin() + 1;
@@ -13,7 +14,6 @@ int main() {
     buf.push_front(3);
     buf.push_front(4);
     std::cout << *std::next(buf.rbegin(), 2);
-
     //for (const auto e : buf) {printf("%d ", e);}
     return 0;
 }
@@ -24,3 +24,7 @@ int main() {
 // const []
 // include exception
 // swap
+
+
+//+= number const iter
+//== != const iter / iter

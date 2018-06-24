@@ -6,6 +6,7 @@
 #include<cassert>
 #include <cstring>
 #include <exception>
+#include <stdexcept>
 
 template<typename T> class RingBuffer {
 private:
@@ -56,12 +57,15 @@ private:
 
         template <typename V>
         Iterator(const Iterator<V>& other, typename std::enable_if<std::is_same<U, const V>::value>::type* = nullptr) {
-            buffer = other.buffer;
-            id = other.id;
-            end_flag = other.end_flag;
+            buffer = other.get_buf();
+            id = other.get_id();
+            end_flag = other.get_end_flag();
         }
 
         uint64_t get_id() const { return id; }
+
+        const RingBuffer * get_buf() const { return buffer; }
+        endFlags get_end_flag() const { return end_flag; }
 
         self_type& operator++() {
             switch (end_flag)
@@ -117,14 +121,30 @@ private:
             return				((int64_t)cur_id + add <= (int64_t)end_id) ? self_type(buffer, (cur_id + add) % max_size) : self_type(buffer, RIGHT);
 
         }
-
-        bool operator == (const Iterator other) const {
-            if (buffer != other.buffer) return false;
-            if (end_flag != other.end_flag) return false;
-            if (end_flag != MID) return true;
-            return id == other.id;
+        self_type operator - (const int del) const {
+            return (*this + (-del));
         }
-        bool operator != (const Iterator other) const { return !((*this) == other); }
+        friend	self_type operator+=(self_type &oth, difference_type add) {
+            oth = oth + add;
+            return oth;
+        }
+        friend self_type operator-=(self_type &oth, difference_type add) {
+            oth = oth - add;
+            return oth;
+        }
+
+        template<typename I>
+        bool operator==(Iterator<I> second) {
+            if (buffer != second.buffer) return false;
+            if (end_flag != second.end_flag) return false;
+            if (end_flag != MID) return true;
+            return id == second.id;
+        }
+
+        template<typename I>
+        bool operator!=(Iterator<I> second) {
+            return ! ((*this) == second);
+        }
 
         reference operator * () const {
             return buffer->buffer[id];
@@ -223,13 +243,15 @@ public:
     void insert(const size_t id, const T &element) { insert(const_iterator(this, (begin_id + id) % max_size), element); }
 
     void pop_back() {
-        assert (cur_size != 0);
+        if (cur_size == 0) throw std::runtime_error("nothing to pop");
+        //assert(cur_size != 0);
         cur_size--;
         if (end_id == 0) end_id = max_size;
         end_id--;
     }
     void pop_front() {
-        assert (cur_size != 0);
+        if (cur_size == 0) throw std::runtime_error("nothing to pop");
+        //assert(cur_size != 0);
         cur_size--;
         begin_id++;
         if (begin_id == max_size) begin_id = 0;
@@ -255,7 +277,8 @@ public:
     void erase(uint64_t id) { erase(const_iterator(this, (begin_id + id) % max_size)); }
 
     T& operator[](uint64_t id) {
-        assert (id <= cur_size);
+        if (id > cur_size) throw std::runtime_error("out of range");
+        //assert(id <= cur_size);
         return buffer[(begin_id + id) % max_size];
     }
     const T operator[](uint64_t id) const { return (*this)[id]; }
@@ -339,7 +362,7 @@ public:
                 }
                 print();
             }
-            catch (std::exception e) {
+            catch (std::exception &e) {
                 printf("error: %s\n", e.what());
             }
         }
