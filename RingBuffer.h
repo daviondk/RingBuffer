@@ -196,6 +196,7 @@ public:
     }
     ~RingBuffer() {
         clear();
+        delete buffer;
     }
 
     void push_back(const T &element) {
