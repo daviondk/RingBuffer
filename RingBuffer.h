@@ -1,372 +1,274 @@
 #ifndef RINGBUFFER_RINGBUFFER_H
 #define RINGBUFFER_RINGBUFFER_H
 
-#include<vector>
-#include<iostream>
-#include<cassert>
-#include<cstring>
-#include<exception>
-#include<stdexcept>
+#include <cstddef>
+#include <iterator>
 
-template<typename T> class RingBuffer {
-private:
-    enum endFlags { LEFT, RIGHT, MID, BOTH };
+template<class T>
+struct Iterator;
 
-    uint64_t max_size;
-    uint64_t cur_size;
-    uint64_t begin_id, end_id;
-    T* buffer;
+template<class T>
+struct RingBuffer;
 
-    void increst_capacity() {
-        uint64_t new_max_size = max_size << 1;
-        T* new_buffer = (T*)malloc(sizeof(T)*new_max_size);
-        uint64_t cur = 0;
+template<class T>
+void swap(RingBuffer<T>& first, RingBuffer<T>& second) {
+    std::swap(first.head, second.head);
+    std::swap(first.sz, second.sz);
+    std::swap(first.capacity, second.capacity);
+    std::swap(first.data, second.data);
+}
 
-        if (begin_id <= end_id) {
-            memcpy(&new_buffer[begin_id], &buffer[begin_id], (end_id - begin_id + 1) * sizeof(T));
-        }
-        else {
-            memcpy(new_buffer, buffer, (end_id + 1) * sizeof(T));
-            uint64_t right_size = max_size - begin_id;
-            memcpy(&new_buffer[new_max_size - right_size], &buffer[max_size - right_size], (right_size) * sizeof(T));
+template<class T>
+class RingBuffer {
+    size_t head{}, sz{}, capacity{};
+    T *data;
 
-            begin_id += max_size;
-        }
-
-        delete buffer;
-        buffer = new_buffer;
-        max_size = new_max_size;
+    void ensure_capacity() {
+        if (sz < capacity) { return; }
+        RingBuffer nw(capacity * 2 + 1);
+        for (const T& element : *this)
+            nw.push_back(element);
+        swap(nw, *this);
     }
 
-    template <typename U>
-    struct Iterator {
-    private:
-        const RingBuffer * buffer;
-        uint64_t id;
-        endFlags end_flag;
-    public:
-        typedef Iterator self_type;
-        typedef U value_type;
-        typedef value_type& reference;
-        typedef value_type* pointer;
-        typedef std::bidirectional_iterator_tag iterator_category;
-        typedef int64_t difference_type;
 
-        Iterator(const RingBuffer* bufer, uint64_t id) : buffer(bufer), id(id), end_flag(MID) {}
-        Iterator(const RingBuffer* bufer, endFlags end_flag) : buffer(bufer), id(0), end_flag(end_flag) {}
-
-        template <typename V>
-        Iterator(const Iterator<V>& other, typename std::enable_if<std::is_same<U, const V>::value>::type* = nullptr) {
-            buffer = other.get_buf();
-            id = other.get_id();
-            end_flag = other.get_end_flag();
-        }
-
-        uint64_t get_id() const { return id; }
-
-        const RingBuffer * get_buf() const { return buffer; }
-        endFlags get_end_flag() const { return end_flag; }
-
-        self_type& operator++() {
-            switch (end_flag)
-            {
-                case LEFT:
-                    id = buffer->begin_id;
-                    end_flag = MID;
-                    break;
-                case MID:
-                    if (id == buffer->end_id) end_flag = RIGHT;
-                    id++;
-                    id %= buffer->max_size;
-            }
-            return (*this);
-        }
-        self_type operator++(int) {
-            self_type result(*this);
-            ++(*this);
-            return result;
-        }
-
-        self_type& operator--() {
-            switch (end_flag)
-            {
-                case RIGHT:
-                    id = buffer->end_id;
-                    end_flag = MID;
-                    break;
-                case MID:
-                    if (id == buffer->begin_id) end_flag = LEFT;
-                    if (id == 0) id = buffer->max_size;
-                    id--;
-            }
-            return (*this);
-        }
-        self_type operator--(int) {
-            self_type result(*this);
-            --(*this);
-            return result;
-        }
-
-        self_type operator + (const int add) const {
-            if (add == 0) return *this;
-
-            // begin_id < cur_id < end_id
-            uint64_t max_size = buffer->max_size;
-            uint64_t begin_id = buffer->begin_id + max_size;
-            uint64_t cur_id = id + max_size;
-            uint64_t end_id = buffer->end_id + max_size;
-            if (end_id < begin_id) end_id += max_size;
-
-            if (add < 0) return ((int64_t)cur_id + add >= (int64_t)begin_id) ? self_type(buffer, (cur_id + add) % max_size) : self_type(buffer, LEFT);
-            return				((int64_t)cur_id + add <= (int64_t)end_id) ? self_type(buffer, (cur_id + add) % max_size) : self_type(buffer, RIGHT);
-
-        }
-        self_type operator - (const int del) const {
-            return (*this + (-del));
-        }
-        friend	self_type operator+=(self_type &oth, difference_type add) {
-            oth = oth + add;
-            return oth;
-        }
-        friend self_type operator-=(self_type &oth, difference_type add) {
-            oth = oth - add;
-            return oth;
-        }
-
-        template<typename I>
-        bool operator==(Iterator<I> second) {
-            if (buffer != second.buffer) return false;
-            if (end_flag != second.end_flag) return false;
-            if (end_flag != MID) return true;
-            return id == second.id;
-        }
-
-        template<typename I>
-        bool operator!=(Iterator<I> second) {
-            return ! ((*this) == second);
-        }
-
-        reference operator * () const {
-            return buffer->buffer[id];
-        }
-        pointer operator -> () const {
-            return &buffer->buffer[id];
-        }
-    };
 public:
-    size_t size() const { return cur_size; }
-    size_t capacity() const { return max_size; }
-
     using iterator = Iterator<T>;
     using const_iterator = Iterator<const T>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    iterator begin() { return empty() ? iterator(this, BOTH) : iterator(this, begin_id); }
-    const_iterator begin() const { return empty() ? const_iterator(this, BOTH) : const_iterator(this, begin_id); }
-    iterator end() { return empty() ? iterator(this, BOTH) : iterator(this, RIGHT); }
-    const_iterator end() const { return empty() ? const_iterator(this, BOTH) : const_iterator(this, RIGHT); }
+    T& operator[](size_t i) { return *iterator(data, i, head, capacity); }
+    T& operator[](size_t i) const { return *iterator(data, i, head, capacity); }
 
+    explicit RingBuffer(size_t capacity = 0) : head(0), sz(0), capacity(capacity), data((T *)malloc(sizeof(T) * capacity)) {}
+
+    RingBuffer(const std::initializer_list<T> init): RingBuffer(init.size()) {
+        for (const T& x : init)
+            push_back(x);
+    }
+    RingBuffer(const RingBuffer& second) : RingBuffer(second.capacity) {
+        for (const T& x : second)
+            push_back(x);
+    }
+    ~RingBuffer() {
+        for(auto &el : *this) {
+            el.~T();
+        }
+        delete (uint8_t*)data;
+    }
+
+    RingBuffer& operator=(const RingBuffer &second) {
+        RingBuffer nw(second);
+        swap(*this, nw);
+        return *this;
+    }
+
+    inline size_t size() const {
+        return sz;
+    }
+    inline bool empty() const {
+        return sz == 0;
+    }
+    void clear() {
+        for(auto& el : *this) {
+            el.~T();
+        }
+        sz = 0;
+        head = 0;
+        capacity = 4;
+    }
+
+    iterator begin() { return iterator(data, 0, head, capacity); }
+    const_iterator begin() const { return const_iterator(data, 0, head, capacity); }
     reverse_iterator rbegin() { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+    iterator end() { return iterator(data, sz, head, capacity); }
+    const_iterator end() const { return const_iterator(data, sz, head, capacity); }
     reverse_iterator rend() { return reverse_iterator(begin()); }
     const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 
-    inline bool empty() const {
-        return cur_size == 0;
-    }
-    void clear() {
-        cur_size = 0;
-        begin_id = 0;
-        end_id = max_size - 1;
+    void push_back(const T& el) {
+        ensure_capacity();
+        new(&data[ (head+sz) % capacity]) T(el);
+        ++sz;
     }
 
-    RingBuffer(const uint64_t max_size = 1) :max_size(max_size) {
-        buffer = (T*)malloc(sizeof(T)*max_size);
-        clear();
-    }
-    RingBuffer(const RingBuffer& other) {
-        max_size = other.max_size;
-        cur_size = other.cur_size;
-        begin_id = other.begin_id;
-        end_id = other.begin_id;
-
-        buffer = (T*)malloc(sizeof(T)*max_size);
-        memcpy(buffer, other.buffer, sizeof(T)*max_size);
-    }
-    ~RingBuffer() {
-        clear();
-        delete buffer;
+    void push_front(const T& el) {
+        ensure_capacity();
+        size_t nw = (head + capacity - 1) % capacity;
+        new(&data[nw]) T(el);
+        head = nw;
+        ++sz;
     }
 
-    void push_back(const T &element) {
-        if (cur_size == max_size) increst_capacity();
-        cur_size++;
-        end_id++;
-        if (end_id == max_size) end_id = 0;
-        buffer[end_id] = element;
-    }
-    void push_front(const T &element) {
-        if (cur_size == max_size) increst_capacity();
-        cur_size++;
-        if (begin_id == 0) begin_id = max_size;
-        begin_id--;
-        buffer[begin_id] = element;
-    }
-    void insert(const const_iterator pos, const T &element) {
-        if (cur_size == max_size) increst_capacity();
-
-        // begin_id < cur_id < end_id
-        uint64_t begin_id = this->begin_id + max_size;
-        uint64_t cur_id = pos.get_id() + max_size;
-        uint64_t end_id = this->end_id + max_size;
-        if (end_id < begin_id) end_id += max_size;
-
-        if (cur_id - begin_id < end_id - cur_id) { //from left
-
-            if (this->begin_id == 0) this->begin_id = max_size;
-            this->begin_id--;
-
-            for (uint64_t cur_el = begin_id; cur_el <= cur_id; cur_el++)
-                buffer[(cur_el - 1) % max_size] = buffer[cur_el % max_size];
+    iterator insert(const_iterator pos, const T& el) {
+        if (pos.id > sz / 2) {
+            push_back(el);
+            for(auto x = end() - 1; x.id != pos.id; x--) {
+                *x = *std::prev(x);
+            }
+            (*this)[pos.id] = el;
         }
-        else { //from right
-
-            this->end_id++;
-            if (this->end_id == max_size) this->end_id = 0;
-
-            for (uint64_t cur_el = end_id; cur_el >= cur_id; cur_el--)
-                buffer[(cur_el + 1) % max_size] = buffer[(cur_el) % max_size];
+        else {
+            push_front(el);
+            for(auto x = begin(); x.id != pos.id; x++) {
+                *x = *std::next(x);
+            }
+            (*this)[pos.id] = el;
         }
-        cur_size++;
-        buffer[cur_id % max_size] = element;
+        return iterator(data, pos.id, head, capacity);
     }
-    void insert(const size_t id, const T &element) { insert(const_iterator(this, (begin_id + id) % max_size), element); }
 
     void pop_back() {
-        if (cur_size == 0) throw std::runtime_error("nothing to pop");
-        //assert(cur_size != 0);
-        cur_size--;
-        if (end_id == 0) end_id = max_size;
-        end_id--;
+        data[(head + sz - 1) % capacity].~T();
+        --sz;
     }
     void pop_front() {
-        if (cur_size == 0) throw std::runtime_error("nothing to pop");
-        //assert(cur_size != 0);
-        cur_size--;
-        begin_id++;
-        if (begin_id == max_size) begin_id = 0;
+        data[head].~T();
+        ++head %= capacity;
+        --sz;
     }
-    void erase(const const_iterator pos) {
-        uint64_t begin_id = this->begin_id + max_size;
-        uint64_t cur_id = pos.get_id();
-        uint64_t end_id = this->end_id + max_size;
-        if (end_id < begin_id) end_id += max_size;
-        // begin_id < cur_id < end_id
 
-        if (cur_id - begin_id < end_id - cur_id) {//from left
-            pop_front();
-            for (uint64_t cur_el = cur_id; cur_el > begin_id; cur_el--)
-                buffer[cur_el % max_size] = buffer[(cur_el - 1) % max_size];
-        }
-        else {//from right
+    iterator erase(const_iterator pos) {
+        if (pos.id > sz / 2) {
+            for(auto x = iterator(data, pos.id, head, capacity); x != end() - 1; x++) {
+                *x = *std::next(x);
+            }
             pop_back();
-            for (uint64_t cur_el = cur_id; cur_el < end_id; cur_el++)
-                buffer[cur_el % max_size] = buffer[(cur_el + 1) % max_size];
         }
-    }
-    void erase(uint64_t id) { erase(const_iterator(this, (begin_id + id) % max_size)); }
-
-    T& operator[](uint64_t id) {
-        if (id > cur_size) throw std::runtime_error("out of range");
-        //assert(id <= cur_size);
-        return buffer[(begin_id + id) % max_size];
-    }
-    const T operator[](uint64_t id) const { return (*this)[id]; }
-    void swap(RingBuffer<T>&right) {
-        std::swap(max_size, right.max_size);
-        std::swap(cur_size, right.cur_size);
-        std::swap(begin_id, right.begin_id);
-        std::swap(end_id, right.end_id);
-        std::swap(buffer, right.buffer);
-    }
-
-    T* front() const { return &buffer[begin_id]; }
-    T* back() const { return &buffer[end_id]; }
-
-    void print() {
-        printf("%llu/%llu: %llu-->%llu\n", cur_size, max_size, begin_id, end_id);
-        for (uint64_t i = 0; i < max_size; i++) {
-            printf("%llu: ", i);
-            std::cout << buffer[i];
-            printf("\n");
+        else {
+            for(auto x = iterator(data, pos.id, head, capacity); x != begin(); x--) {
+                *x = *std::prev(x);
+            }
+            pop_front();
         }
+        return iterator(data, pos.id, head, capacity);
     }
+
+    T& back() { return *(end() - 1); }
+    T& back() const { return (*this)[sz - 1]; }
+    T& front() { return *begin(); }
+    T& front() const { return (*this)[0]; }
+
+    template<class S>
+    friend void swap(RingBuffer<S>& first, RingBuffer<S>& second);
 };
-template<typename T> void swap(RingBuffer<T>&left, RingBuffer<T>&right) {
-    left.swap(right);
+
+template<class T>
+struct Iterator {
+private:
+    template<class B>
+    friend class RingBuffer;
+
+    template<class I>
+    friend class Iterator;
+
+    T * data;
+    size_t id, head, capacity;
+
+    Iterator(T *data, size_t ind, size_t head, size_t capacity) : data(data), id(ind), head(head), capacity(capacity) {}
+
+public:
+    typedef std::ptrdiff_t difference_type;
+    typedef T value_type;
+    typedef T* pointer;
+    typedef T& reference;
+    typedef std::random_access_iterator_tag iterator_category;
+
+    template<class = std::enable_if_t<std::is_const<T>::value>>
+    Iterator(const Iterator<std::decay_t<T>>& second) : data(second.data), id(second.id), head(second.head), capacity(second.capacity){ }
+
+
+    const Iterator operator++(int) {
+        Iterator nw = *this;
+        ++id;
+        return nw;
+    }
+    Iterator& operator++() {
+        (*this)++;
+        return *this;
+    }
+
+    const Iterator operator--(int) {
+        Iterator nw = *this;
+        --id;
+        return nw;
+    }
+    Iterator& operator--() {
+        (*this)--;
+        return *this;
+    }
+
+    pointer operator->() const {
+        return (head + id) % capacity + data;
+    }
+
+    reference operator*() const {
+        return *((head + id) % capacity + data);
+    }
+
+    friend Iterator operator+(Iterator const& iter, difference_type add) {
+        return Iterator(iter.data, iter.id + add, iter.head, iter.capacity);
+    }
+    friend Iterator operator-(Iterator const& iter, difference_type add) {
+        return iter + (-add);
+    }
+    friend Iterator operator+=(Iterator& iter, difference_type add) {
+        iter = iter + add;
+        return iter;
+    }
+    friend Iterator operator-=(Iterator& iter, difference_type add) {
+        return iter += (-add);
+    }
+
+    template<class F, class S>
+    friend bool operator==(Iterator<F> const& first, Iterator<S> const& second);
+
+    template<class F, class S>
+    friend bool operator!=(Iterator<F> const& first, Iterator<S> const& second);
+    template<class F, class S>
+    friend bool operator<(Iterator<F> const& first, Iterator<S> const& second);
+
+    template<class F, class S>
+    friend bool operator>(Iterator<F> const& first, Iterator<S> const& second);
+    template<class F, class S>
+    friend bool operator<=(Iterator<F> const& first, Iterator<S> const& second);
+
+    template<class F, class S>
+    friend bool operator>=(Iterator<F> const& first, Iterator<S> const& second);
+};
+
+template<class F, class S>
+bool operator==(Iterator<F> const& first, Iterator<S> const& second) {
+    return (!(first<second) && !(second<first));
 }
 
-class Tester {
-public:
-    RingBuffer<int> *buffer;
+template<class F, class S>
+bool operator!=(Iterator<F> const& first, Iterator<S> const& second) {
+    return !(first == second);
+}
 
-    Tester() {
-        buffer = new RingBuffer<int>(2);
-    }
+template<class F, class S>
+bool operator<(Iterator<F> const& first, Iterator<S> const& second) {
+    return first.id < second.id;
+}
 
-    void print() {
-        buffer->print();
-        //printf("capacity: %d / %d", buffer->size(), buffer->capacity());
-        printf("( --> ) "); for (auto cur = buffer->begin(); cur != buffer->end(); cur++)   printf("%d ", *cur); printf("\n");
-        printf("( <-- ) "); for (auto cur = buffer->rbegin(); cur != buffer->rend(); cur++) printf("%d ", *cur); printf("\n");
-    }
+template<class F, class S>
+bool operator>(Iterator<F> const& first, Iterator<S> const& second) {
+    return second < first;
+}
 
-    void startListen() {
-        int element;
-        int cmd;
-        int id;
 
-        while (true) {
-            std::cin >> cmd;
-            try {
-                switch (cmd) {
-                    case 0:
-                        std::cin >> id;
-                        printf("out: %d\n", (*buffer)[id]);
-                        break;
-                    case 1:
-                        std::cin >> element;
-                        buffer->push_front(element);
-                        break;
-                    case 2:
-                        std::cin >> id;
-                        std::cin >> element;
-                        buffer->insert(id, element);
-                        break;
-                    case 3:
-                        std::cin >> element;
-                        buffer->push_back(element);
-                        break;
-                    case 4:
-                        buffer->pop_front();
-                        break;
-                    case 5:
-                        std::cin >> id;
-                        buffer->erase(id);
-                        break;
-                    case 6:
-                        buffer->pop_back();
-                        break;
-                    default:
-                        return;
-                }
-                print();
-            }
-            catch (std::exception &e) {
-                printf("error: %s\n", e.what());
-            }
-        }
-    }
-};
+template<class F, class S>
+bool operator<=(Iterator<F> const& first, Iterator<S> const& second) {
+    return !(second < first);
+}
+
+
+template<class F, class S>
+bool operator>=(Iterator<F> const& first, Iterator<S> const& second) {
+    return !(first < second);
+}
+
 #endif //RINGBUFFER_RINGBUFFER_H
